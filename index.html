@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>MCoin Mining</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
 <style>
 :root{--bg:#0b0f1a;--card:#141b2b;--card2:#1a2438;--line:rgba(255,255,255,.07);--tx:#eef2ff;--mut:#8b97b3;--a1:#27a7ff;--a2:#8b5cf6;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--r:18px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -516,7 +516,11 @@ async function doMine() {
 
 function openWallet() {
   if (!S.wallet.address) {
-    if (tc) tc.openModal(); else toast('Wallet module not loaded, please refresh the page.');
+    if (tc) {
+      try {
+        Promise.resolve(tc.openModal()).catch(e => toast('Wallet error: ' + ((e && e.message) || e)));
+      } catch (e) { toast('Wallet error: ' + ((e && e.message) || e)); }
+    } else toast('Wallet module error: ' + (window._tcErr ? ((window._tcErr.message) || window._tcErr) : 'not loaded') + ' — refresh the page.');
     return;
   }
   openSheet('<div class="stack"><b style="font-size:18px">Your wallet</b>' +
@@ -647,7 +651,7 @@ function initTonConnect() {
       manifestUrl: 'https://noyonjoker7-rgb.github.io/Mcoin/tonconnect-manifest.json',
       actionsConfiguration: { twaReturnUrl: 'https://t.me/mcoinmining009_bot' }
     });
-  } catch (e) { tc = null; return; }
+  } catch (e) { tc = null; window._tcErr = e; return; }
   tc.onStatusChange(async w => {
     if (!w || !w.account) return;
     const addr = w.account.address;               // raw form "0:<hex>"
