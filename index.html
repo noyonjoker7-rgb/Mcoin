@@ -643,7 +643,10 @@ document.addEventListener('click', e => {
 /* ---------- TON Connect (real) ---------- */
 function initTonConnect() {
   try {
-    tc = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: location.origin + '/tonconnect-manifest.json'
+    tc = new TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: 'https://noyonjoker7-rgb.github.io/Mcoin/tonconnect-manifest.json',
+      actionsConfiguration: { twaReturnUrl: 'https://t.me/mcoinmining009_bot' }
+    });
   } catch (e) { tc = null; return; }
   tc.onStatusChange(async w => {
     if (!w || !w.account) return;
