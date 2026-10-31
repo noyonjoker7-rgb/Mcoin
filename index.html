@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>MCoin Mining</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+<style>
+:root{--bg:#0b0f1a;--card:#141b2b;--card2:#1a2438;--line:rgba(255,255,255,.07);--tx:#eef2ff;--mut:#8b97b3;--a1:#27a7ff;--a2:#8b5cf6;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--r:18px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans Bengali","Hind Siliguri",sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+#app{height:100%;display:flex;flex-direction:column;background:radial-gradient(900px 420px at 50% -120px,rgba(139,92,246,.22),transparent 70%),var(--bg)}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 10px}
+.who{display:flex;align-items:center;gap:10px;min-width:0}
+.avatar{position:relative;width:42px;height:42px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:18px;background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 0 0 2px var(--bg),0 0 0 4px rgba(39,167,255,.45);overflow:hidden}
+.avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.who-t{display:flex;flex-direction:column;min-width:0}
+.who-t b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.who-t small{color:var(--mut);font-size:12px}
+.wbtn{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:600}
+.wbtn svg{width:18px;height:18px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+main{flex:1;overflow-y:auto;padding:6px 16px 20px;-webkit-overflow-scrolling:touch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.muted{color:var(--mut);font-size:13px}
+.h{font-size:20px;font-weight:700;margin:8px 0 12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+.stat b{display:block;font-size:16px;margin-top:4px}
+.stat small{color:var(--mut);font-size:11px}
+.stack>*+*{margin-top:12px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 16px;border-radius:14px;font-weight:700;font-size:15px;background:var(--card2);border:1px solid var(--line);transition:transform .08s,opacity .2s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(135deg,var(--a1),var(--a2));border:0;box-shadow:0 8px 24px rgba(88,101,255,.35)}
+.btn.big{padding:17px;font-size:17px;border-radius:16px}
+.btn[disabled]{opacity:.45;pointer-events:none;box-shadow:none}
+.btn.sm{width:auto;padding:9px 14px;font-size:13px;border-radius:11px}
+.btn.danger{background:rgba(239,68,68,.12);color:#fca5a5;border-color:rgba(239,68,68,.3)}
+.bal{text-align:center;padding:18px}
+.bal-num{font-size:38px;font-weight:800;letter-spacing:-.5px;margin-top:4px;background:linear-gradient(135deg,#fff,#b7c7ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.bal-num span{font-size:16px;font-weight:700;color:var(--mut);-webkit-text-fill-color:var(--mut);margin-left:4px}
+.ring-wrap{position:relative;width:236px;height:236px;margin:18px auto}
+.ring-wrap svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring-wrap .bgc{fill:none;stroke:rgba(255,255,255,.07);stroke-width:12}
+.ring-wrap .pg{fill:none;stroke:url(#g);stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .6s linear}
+.ring-wrap.pulse::after{content:"";position:absolute;inset:14px;border-radius:50%;box-shadow:0 0 40px rgba(39,167,255,.35);animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.97)}50%{opacity:1;transform:scale(1.02)}}
+.ring-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.ring-c .bolt{width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 6px 20px rgba(88,101,255,.45)}
+.ring-c .bolt svg{width:24px;height:24px;stroke:#fff;fill:#fff}
+.ring-c .t{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.5px;margin-top:6px}
+.ring-c .s{font-size:12px;color:var(--mut)}
+.row{display:flex;align-items:center;gap:12px}
+.row .grow{flex:1;min-width:0}
+.item{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;align-items:center;gap:12px}
+.item .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;background:linear-gradient(135deg,rgba(39,167,255,.2),rgba(139,92,246,.2));font-size:20px}
+.item b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item small{color:var(--ok);font-weight:600}
+.chip{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(34,197,94,.14);color:#86efac}
+.field{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--tx);font:inherit;font-size:14px;outline:0}
+.field:focus{border-color:var(--a1)}
+.link-box{display:flex;gap:8px;align-items:center;background:var(--card2);border:1px dashed rgba(255,255,255,.14);border-radius:12px;padding:10px 12px;font-size:12px;word-break:break-all}
+.prof-head{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 0 4px}
+.prof-head .avatar{width:76px;height:76px;font-size:30px}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.kv:last-child{border:0}
+.kv span{color:var(--mut);font-size:13px}
+.kv b{font-size:15px}
+.req{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.req:last-child{border:0}
+.chk{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;border:2px solid rgba(255,255,255,.18)}
+.req.ok .chk{background:var(--ok);border-color:var(--ok)}
+.chk svg{width:14px;height:14px;stroke:#fff;stroke-width:3;fill:none}
+.req-t{flex:1;min-width:0}
+.req-t b{display:block;font-size:14px}
+.req-t small{color:var(--mut);font-size:12px;line-height:1.35;display:block;margin-top:2px}
+nav{display:flex;padding:8px 10px calc(env(safe-area-inset-bottom,0px) + 8px);background:rgba(14,19,32,.92);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;font-size:11px;font-weight:600;color:var(--mut);border-radius:12px;transition:color .15s}
+nav button svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav button.on{color:#fff}
+nav button.on svg{stroke:var(--a1)}
+nav button.on .ni{background:rgba(39,167,255,.14)}
+.ni{padding:5px 18px;border-radius:999px;transition:background .15s}
+.sheet{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end}
+.sheet.hidden{display:none}
+.sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.sheet-body{position:relative;width:100%;max-height:88%;overflow:auto;background:var(--card);border-radius:24px 24px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 20px);animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.grab{width:42px;height:4px;border-radius:4px;background:rgba(255,255,255,.2);margin:-8px auto 14px}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translateX(-50%) translateY(20px);background:#222c44;border:1px solid var(--line);padding:11px 16px;border-radius:12px;font-size:13px;font-weight:600;max-width:88vw;text-align:center;opacity:0;pointer-events:none;transition:.22s;z-index:99}
+#toast.show{opacity:1;transform:translateX(-50%)}
+#splash{position:fixed;inset:0;z-index:90;display:grid;place-items:center;background:var(--bg);color:var(--mut);font-size:14px;text-align:center;padding:30px}
+.lock{padding:14px;border-radius:14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.28);color:#fcd34d;font-size:13px;text-align:center}
+#app{max-width:480px;margin:0 auto;box-shadow:0 0 0 1px rgba(255,255,255,.05)}
+body{background:#05070d}
+</style>
+</head>
+<body>
+<div id="splash">Loading…</div>
+<div id="app">
+  <header>
+    <div class="who">
+      <div class="avatar" id="avatar"></div>
+      <div class="who-t"><b id="uname"></b><small id="usub"></small></div>
+    </div>
+    <button class="wbtn" id="wbtn" data-act="wallet"></button>
+  </header>
+  <main id="view"></main>
+  <nav id="nav"></nav>
+</div>
+<div class="sheet hidden" id="sheet"><div class="sheet-bg" data-act="close"></div><div class="sheet-body" id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const _tw = window.Telegram && window.Telegram.WebApp;
+const tg = (_tw && _tw.initData) ? _tw : { initData: 'local', initDataUnsafe: {}, ready(){}, expand(){}, setHeaderColor(){}, setBackgroundColor(){},
+  openLink(u){ window.open(u, '_blank'); }, openTelegramLink(u){ window.open(u, '_blank'); } };
+const RING_C = 2 * Math.PI * 96;
+
+/* ---------- Text ---------- */
+const T = {
+  nav: { mining: 'Mining', tasks: 'Tasks', friends: 'Friends', profile: 'Profile' },
+  err: {
+    UNAUTHORIZED: 'Please open the app from inside Telegram.',
+    SERVER_ERROR: 'Something went wrong on the server. Please try again.',
+    WALLET_REQUIRED: 'Please connect your Tonkeeper wallet first.',
+    NOT_READY: 'It is not time to claim yet.',
+    BAD_ADDRESS: 'The wallet address is invalid.',
+    WALLET_LOCKED: 'A verified wallet cannot be changed or disconnected.',
+    WALLET_TAKEN: 'This wallet is already used by another account.',
+    ALREADY_VERIFIED: 'Your account is already verified.',
+    NOT_CONFIGURED: 'Verification is not enabled yet.',
+    AGE_UNKNOWN: 'No on-chain transactions were found for this wallet. The wallet must be at least 7 days old.',
+    AGE_LOW: 'The wallet must be at least 7 days old.',
+    NO_PENDING: 'There is no pending verification.',
+    CHECK_FAILED: 'Could not verify. Please try again shortly.',
+    NOT_PAID_YET: 'Payment not received yet. Please check again in 1-2 minutes.',
+    NOT_VERIFIED: 'Please verify your account before withdrawing.',
+    PENDING_EXISTS: 'You already have a withdrawal request being processed.',
+    MIN_BALANCE: 'Your balance is below the minimum withdrawal limit.',
+    NOTHING_TO_CLAIM: 'Nothing to claim.',
+    TASK_NOT_FOUND: 'Task not found.',
+    TASK_NOT_STARTED: 'Please start the task first.',
+    TASK_DONE: 'This task is already completed.',
+    TOO_EARLY: 'Please wait a bit and try again.',
+    NOT_JOINED: 'You have not joined yet.',
+    FORBIDDEN: 'Not allowed.',
+    BAD_TASK: 'The task details are invalid.'
+  }
+};
+const errText = r => (T.err[r.code] || 'Something went wrong.');
+
+/* ---------- Icons ---------- */
+const I = {
+  mining: '<svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+  tasks: '<svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+  friends: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  profile: '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+};
+
+/* ---------- Helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: d });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const fmtTime = s => { s = Math.max(0, Math.floor(s)); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); };
+
+let S = null, TAB = 'mining', tc = null, busy = false, lastPosted = null;
+
+/* ====== CONFIG (edit here) ====== */
+const CFG = {
+  coin: 'MCoin', priceUsd: 0.001,          // 1000 MCoin = 1 USDT
+  hours: 24, reward: 40,                   // 40 coins every 24 hours
+  refBonus: 100, minDays: 7, fee: 0.05, minWithdraw: 1000, taskWait: 10,
+  owner: 'UQAA25KEB8N0k7d_OgLj5t3TR7Aq5otTXLNcW_HO_OQzzjmf',
+  toncenter: 'https://toncenter.com/api/v3',
+  toncenterKey: 'b24d14fe62faaee5e7d629a98904352999e38d2661b72a8a7d378277abd8cd44',
+  bot: 'mcoinmining009_bot',
+  tasks: [   // kind: 'link' or 'channel'  (channel here is only a link: joins cannot be verified without a server)
+    { id: 1, title: 'Join the official channel', reward: 25, kind: 'channel', url: 'https://t.me/telegram' },
+    { id: 2, title: 'Visit the website', reward: 10, kind: 'link', url: 'https://example.com' }
+  ]
+};
+
+/* ====== Browser-only backend (data is saved in this device's localStorage) ====== */
+const TU = (tg.initDataUnsafe && tg.initDataUnsafe.user) || { id: 0, first_name: 'Guest' };
+const KEY = 'mcoin_v1_' + TU.id;
+const blank = () => ({ balance: 0, earned: 0, mineStart: null, wallet: '', since: null, verified: false, code: '', wd: null, wdId: 0, tasks: {} });
+let D = blank();
+try { D = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
+const now = () => Math.floor(Date.now() / 1000);
+const shortA = a => a ? a.slice(0, 5) + '…' + a.slice(-5) : '';
+const bad = (code, x) => Object.assign({ ok: false, code }, x || {});
+const MINE_SEC = CFG.hours * 3600;
+
+async function tonGet(path, params) {
+  const r = await fetch(CFG.toncenter + path + '?' + new URLSearchParams(params), { headers: { 'X-API-Key': CFG.toncenterKey } });
+  if (!r.ok) throw new Error('ton ' + r.status);
+  return r.json();
+}
+async function refreshAge() {
+  if (!D.wallet || D.since) return;
+  try {
+    const d = await tonGet('/transactions', { account: D.wallet, limit: 1, sort: 'asc' });
+    if (d.transactions && d.transactions[0]) { D.since = +d.transactions[0].now; save(); }
+  } catch (e) {}
+}
+const ageDays = () => D.since ? Math.floor((now() - D.since) / 86400) : null;
+const ageOk = () => !!D.wallet && ageDays() !== null && ageDays() >= CFG.minDays;
+
+async function buildState() {
+  await refreshAge();
+  let ton = null;
+  if (D.wallet) { try { ton = (+(await tonGet('/account', { address: D.wallet })).balance) / 1e9; } catch (e) {} }
+  const started = D.mineStart !== null;
+  return { ok: true, user: { id: TU.id, first_name: TU.first_name, username: TU.username || '', photo_url: TU.photo_url || '' },
+    is_admin: false, balance: D.balance, earned: D.earned,
+    coin: { name: CFG.coin, price_usd: CFG.priceUsd, mine_reward: CFG.reward, mine_hours: CFG.hours, mine_seconds: MINE_SEC },
+    mining: { started, left: started ? Math.max(0, MINE_SEC - (now() - D.mineStart)) : null },
+    wallet: { address: D.wallet, short: shortA(D.wallet), since: D.since, age_days: ageDays(), age_ok: ageOk(), min_days: CFG.minDays },
+    verified: D.verified, fee: CFG.fee, min_withdraw: CFG.minWithdraw, withdraw_pending: D.wd, onchain_ton: ton,
+    referral: { count: 0, pending: 0, bonus: CFG.refBonus, link: 'https://t.me/' + CFG.bot + '?start=' + TU.id, friends: [] },
+    tasks: CFG.tasks.map(t => { const u = D.tasks[t.id];
+      return { id: t.id, title: t.title, reward: t.reward, kind: t.kind, url: t.url,
+        status: u && u.done ? 'done' : (u ? 'started' : 'new'),
+        wait_left: u && !u.done ? Math.max(0, CFG.taskWait - (now() - u.started)) : 0 }; }),
+    task_wait: CFG.taskWait };
+}
+
+async function api(path, method, body) {
+  body = body || {};
+  switch (path) {
+    case '/api/state': return buildState();
+    case '/api/mine':
+      if (!D.wallet) return bad('WALLET_REQUIRED');
+      if (D.mineStart === null) { D.mineStart = now(); save(); return { ok: true, action: 'started' }; }
+      if (now() - D.mineStart < MINE_SEC) return bad('NOT_READY');
+      D.balance += CFG.reward; D.earned += CFG.reward; D.mineStart = now(); save();
+      return { ok: true, action: 'claimed', reward: CFG.reward };
+    case '/api/wallet':
+      if (D.verified) return bad('WALLET_LOCKED');
+      D.wallet = body.address; D.since = null; save(); return { ok: true };
+    case '/api/wallet/disconnect':
+      if (D.verified) return bad('WALLET_LOCKED');
+      D.wallet = ''; D.since = null; save(); return { ok: true };
+    case '/api/verify/start': {
+      if (!D.wallet) return bad('WALLET_REQUIRED'); if (D.verified) return bad('ALREADY_VERIFIED');
+      await refreshAge(); if (!D.since) return bad('AGE_UNKNOWN'); if (!ageOk()) return bad('AGE_LOW');
+      if (!D.code) D.code = 'VF' + Math.random().toString(16).slice(2, 10).toUpperCase(); save();
+      return { ok: true, code: D.code, owner: CFG.owner, fee: CFG.fee,
+        pay_url: 'https://app.tonkeeper.com/transfer/' + CFG.owner + '?amount=' + Math.round(CFG.fee * 1e9) + '&text=' + D.code,
+        note: 'This fee is paid only once and is non-refundable. It is charged to prevent fake/multiple accounts.' };
+    }
+    case '/api/verify/check': {
+      if (D.verified) return bad('ALREADY_VERIFIED'); if (!D.code) return bad('NO_PENDING');
+      let d; try { d = await tonGet('/transactions', { account: CFG.owner, limit: 50, sort: 'desc' }); } catch (e) { return bad('CHECK_FAILED'); }
+      const need = Math.round(CFG.fee * 1e9);
+      for (const tx of (d.transactions || [])) {
+        const m = tx.in_msg || {};
+        const c = ((m.message_content || {}).decoded || {}).comment || '';
+        if (c.trim() === D.code && +(m.value || 0) >= need && String(m.source || '').toLowerCase() === D.wallet.toLowerCase()) {
+          D.verified = true; save(); return { ok: true, verified: true };
+        }
+      }
+      return bad('NOT_PAID_YET');
+    }
+    case '/api/withdraw':
+      if (!D.wallet) return bad('WALLET_REQUIRED'); if (!ageOk()) return bad('AGE_LOW');
+      if (!D.verified) return bad('NOT_VERIFIED'); if (D.wd) return bad('PENDING_EXISTS');
+      if (D.balance < CFG.minWithdraw) return bad('MIN_BALANCE');
+      D.wdId++; D.wd = { id: D.wdId, amount: D.balance }; D.balance = 0; save();
+      return { ok: true, id: D.wdId, amount: D.wd.amount };
+    case '/api/referral/claim': return bad('NOTHING_TO_CLAIM');
+    case '/api/task/start': { const t = CFG.tasks.find(x => x.id === body.id); if (!t) return bad('TASK_NOT_FOUND');
+      if (!D.tasks[t.id]) { D.tasks[t.id] = { started: now(), done: 0 }; save(); } return { ok: true }; }
+    case '/api/task/claim': {
+      const t = CFG.tasks.find(x => x.id === body.id); if (!t) return bad('TASK_NOT_FOUND');
+      const u = D.tasks[t.id]; if (!u) return bad('TASK_NOT_STARTED'); if (u.done) return bad('TASK_DONE');
+      const left = CFG.taskWait - (now() - u.started); if (left > 0) return bad('TOO_EARLY', { wait: left });
+      u.done = 1; D.balance += t.reward; D.earned += t.reward; save(); return { ok: true, reward: t.reward };
+    }
+  }
+  return bad('SERVER_ERROR');
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+function haptic(kind) { try { tg.HapticFeedback.notificationOccurred(kind); } catch (e) {} }
+
+function openSheet(html) { $('#sheetBody').innerHTML = '<div class="grab"></div>' + html; $('#sheet').classList.remove('hidden'); }
+function closeSheet() { $('#sheet').classList.add('hidden'); }
+
+function copyText(text) {
+  const done = () => toast('Copied');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallback());
+  } else fallback();
+  function fallback() {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast('Could not copy'); }
+    document.body.removeChild(ta);
+  }
+}
+
+function openLink(url) {
+  try {
+    if (/^https:\/\/t\.me\//.test(url) && tg.openTelegramLink) tg.openTelegramLink(url);
+    else tg.openLink(url);
+  } catch (e) { window.open(url, '_blank'); }
+}
+
+/* ---------- Header / Nav ---------- */
+function renderHeader() {
+  const u = S.user, name = u.first_name || u.username || 'User';
+  const initial = esc((name[0] || 'U').toUpperCase());
+  $('#avatar').innerHTML = initial + (u.photo_url ? '<img src="' + esc(u.photo_url) + '" referrerpolicy="no-referrer" alt="" onerror="this.remove()">' : '');
+  $('#uname').textContent = name;
+  $('#usub').textContent = u.username ? '@' + u.username : 'ID ' + u.id;
+  $('#wbtn').innerHTML = S.wallet.address ? '<span class="dot"></span>' + esc(S.wallet.short) : I.wallet + 'Wallet';
+}
+
+function renderNav() {
+  $('#nav').innerHTML = ['mining', 'tasks', 'friends', 'profile'].map(k =>
+    '<button class="' + (TAB === k ? 'on' : '') + '" data-act="tab" data-tab="' + k + '"><span class="ni">' + I[k] + '</span>' + T.nav[k] + '</button>'
+  ).join('');
+}
+
+/* ---------- Mining ---------- */
+function leftNow() {
+  if (!S.mining.started) return null;
+  return Math.max(0, S.mining.left - (Date.now() - S._at) / 1000);
+}
+function miningState() {
+  if (!S.wallet.address) return 'nowallet';
+  if (!S.mining.started) return 'idle';
+  return leftNow() <= 0 ? 'ready' : 'mining';
+}
+const STATE_LABEL = { nowallet: 'Connect your wallet', idle: 'Mining stopped', mining: 'Mining in progress', ready: 'Ready to claim' };
+
+function viewMining() {
+  const c = S.coin;
+  const price = c.price_usd > 0 ? '<div class="muted">≈ $' + fmt(S.balance * c.price_usd, 4) + '</div>' : '';
+  return '<div class="stack">' +
+    '<div class="card bal"><div class="muted">Total balance</div>' +
+    '<div class="bal-num">' + fmt(S.balance) + '<span>' + esc(c.name) + '</span></div>' + price + '</div>' +
+    '<div class="ring-wrap" id="ringWrap"><svg viewBox="0 0 220 220">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#27a7ff"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>' +
+    '<circle class="bgc" cx="110" cy="110" r="96"/><circle class="pg" id="pg" cx="110" cy="110" r="96" stroke-dasharray="' + RING_C + '" stroke-dashoffset="' + RING_C + '"/></svg>' +
+    '<div class="ring-c"><div class="bolt">' + I.mining + '</div><div class="t" id="tm">--:--:--</div><div class="s" id="sl"></div></div></div>' +
+    '<div class="grid3">' +
+    '<div class="stat"><small>Per session</small><b>+' + fmt(c.mine_reward) + '</b></div>' +
+    '<div class="stat"><small>Session</small><b>' + c.mine_hours + ' hrs</b></div>' +
+    '<div class="stat"><small>Total earned</small><b>' + fmt(S.earned) + '</b></div></div>' +
+    (S.wallet.address ? '' : '<div class="lock">Connect your Tonkeeper wallet first to start mining.</div>') +
+    '<button class="btn primary big" id="mineBtn" data-act="mine"></button></div>';
+}
+
+function tickMining() {
+  const st = miningState();
+  if (S._st !== st) { S._st = st; if (TAB === 'mining') { renderView(); } return; }
+  if (TAB !== 'mining') return;
+  const L = leftNow();
+  const pg = $('#pg'), tm = $('#tm'), sl = $('#sl'), btn = $('#mineBtn'), rw = $('#ringWrap');
+  if (!pg) return;
+  const prog = S.mining.started ? 1 - L / S.coin.mine_seconds : 0;
+  pg.setAttribute('stroke-dashoffset', String(RING_C * (1 - prog)));
+  tm.textContent = S.mining.started ? fmtTime(L) : '00:00:00';
+  sl.textContent = STATE_LABEL[st];
+  rw.classList.toggle('pulse', st === 'mining');
+  btn.textContent = {
+    nowallet: 'Connect wallet', idle: 'Start mining',
+    mining: 'Mining… ' + fmtTime(L || 0),
+    ready: 'Claim +' + fmt(S.coin.mine_reward) + ' ' + S.coin.name
+  }[st];
+  btn.disabled = st === 'mining';
+}
+
+/* ---------- Tasks ---------- */
+function viewTasks() {
+  let h = '<div class="h">Tasks</div><div class="stack">';
+  if (!S.tasks.length) h += '<div class="card muted" style="text-align:center">No tasks yet.</div>';
+  S.tasks.forEach(t => {
+    let btn;
+    if (t.status === 'done') btn = '<span class="chip">Done ✓</span>';
+    else if (t.status === 'started') btn = '<button class="btn sm primary" data-act="task_claim" data-id="' + t.id + '">' + (t.kind === 'channel' ? 'Check' : 'Claim') + '</button>';
+    else btn = '<button class="btn sm" data-act="task_start" data-id="' + t.id + '" data-url="' + esc(t.url) + '">' + (t.kind === 'channel' ? 'Join' : 'Start') + '</button>';
+    h += '<div class="item"><div class="ic">' + (t.kind === 'channel' ? '📣' : '🔗') + '</div>' +
+      '<div class="grow row" style="gap:8px"><div class="grow"><b>' + esc(t.title) + '</b><small>+' + fmt(t.reward) + ' ' + esc(S.coin.name) + '</small></div></div>' +
+      btn + (S.is_admin ? '<button class="btn sm danger" data-act="task_del" data-id="' + t.id + '" style="padding:9px 11px">✕</button>' : '') + '</div>';
+  });
+  if (S.is_admin) {
+    h += '<div class="card stack"><b>➕ Add new task (Admin)</b>' +
+      '<input class="field" id="tTitle" maxlength="80" placeholder="Task name">' +
+      '<input class="field" id="tReward" type="number" min="1" placeholder="Reward (' + esc(S.coin.name) + ')">' +
+      '<select class="field" id="tKind"><option value="link">Visit link</option><option value="channel">Join channel</option></select>' +
+      '<input class="field" id="tTarget" placeholder="Link (https://…) or channel (@username)">' +
+      '<div class="muted">For channel tasks, you must make your bot an admin of that channel, otherwise joins cannot be verified.</div>' +
+      '<button class="btn primary" data-act="task_add">Add</button></div>';
+  }
+  return h + '</div>';
+}
+
+/* ---------- Friends ---------- */
+function viewFriends() {
+  const r = S.referral;
+  let h = '<div class="h">Refer Friends</div><div class="stack">' +
+    '<div class="grid2"><div class="stat"><small>Joined</small><b style="font-size:24px">' + r.count + '</b></div>' +
+    '<div class="stat"><small>Claimable coins</small><b style="font-size:24px">' + fmt(r.pending) + '</b></div></div>' +
+    '<button class="btn primary" data-act="claim_ref"' + (r.pending > 0 ? '' : ' disabled') + '>🎁 Claim referral coins</button>' +
+    '<div class="card stack"><b>Your invite link</b>' +
+    '<div class="muted">You get +' + fmt(r.bonus) + ' ' + esc(S.coin.name) + ' for every friend who joins</div>' +
+    '<div class="link-box"><span class="grow" style="flex:1">' + esc(r.link) + '</span></div>' +
+    '<div class="grid2"><button class="btn" data-act="copy" data-text="' + esc(r.link) + '">Copy</button>' +
+    '<button class="btn primary" data-act="share">Share</button></div></div>' +
+    '<div class="h" style="font-size:16px;margin:6px 0">Your friends</div>';
+  if (!r.friends.length) h += '<div class="card muted" style="text-align:center">Nobody has joined yet.</div>';
+  r.friends.forEach(f => {
+    const d = new Date(f.joined * 1000).toLocaleDateString('en-GB');
+    h += '<div class="item"><div class="ic">👤</div><div class="grow"><b>' + esc(f.name) + '</b><span class="muted">Joined: ' + d + '</span></div>' +
+      '<span class="chip">+' + fmt(r.bonus) + '</span></div>';
+  });
+  return h + '</div>';
+}
+
+/* ---------- Profile ---------- */
+function req(ok, title, sub, btn) {
+  return '<div class="req ' + (ok ? 'ok' : '') + '"><div class="chk">' + (ok ? I.check : '') + '</div>' +
+    '<div class="req-t"><b>' + title + '</b><small>' + sub + '</small></div>' + (btn || '') + '</div>';
+}
+
+function viewProfile() {
+  const u = S.user, w = S.wallet, name = u.first_name || u.username || 'User';
+  const price = S.coin.price_usd;
+  const hasW = !!w.address;
+  let ageSub;
+  if (!hasW) ageSub = 'Connect a wallet first';
+  else if (w.age_days == null) ageSub = 'No transactions found on the blockchain — receive some TON at least once and wait ' + w.min_days + ' days';
+  else ageSub = w.age_days + ' days old (' + w.min_days + ' days required)';
+
+  const canVerify = hasW && w.age_ok && !S.verified;
+  const allOk = hasW && w.age_ok && S.verified;
+  let wdNote = '';
+  if (S.withdraw_pending) wdNote = 'Request #' + S.withdraw_pending.id + ' (' + fmt(S.withdraw_pending.amount) + ' ' + S.coin.name + ') is being processed.';
+  else if (!hasW) wdNote = 'Connect your Tonkeeper wallet to withdraw.';
+  else if (!w.age_ok) wdNote = 'Your wallet must be at least ' + w.min_days + ' days old to withdraw.';
+  else if (!S.verified) wdNote = 'Verify your account with ' + S.fee + ' TON to withdraw.';
+  else if (S.balance < S.min_withdraw) wdNote = 'Minimum withdrawal is ' + fmt(S.min_withdraw) + ' ' + S.coin.name + '. Your balance is ' + fmt(S.balance) + '.';
+  const canWd = allOk && !S.withdraw_pending && S.balance >= S.min_withdraw;
+
+  return '<div class="stack">' +
+    '<div class="prof-head"><div class="avatar" id="pAv"></div><b style="font-size:18px">' + esc(name) + '</b>' +
+    '<span class="muted">' + (u.username ? '@' + esc(u.username) : 'ID ' + u.id) + '</span></div>' +
+    '<div class="card"><div class="kv"><span>Total coins earned</span><b>' + fmt(S.earned) + ' ' + esc(S.coin.name) + '</b></div>' +
+    '<div class="kv"><span>Current balance</span><b>' + fmt(S.balance) + ' ' + esc(S.coin.name) + '</b></div>' +
+    '<div class="kv"><span>Coin price</span><b>' + (price > 0 ? '$' + fmt(price, 6) : 'Not set yet') + '</b></div>' +
+    (price > 0 ? '<div class="kv"><span>Balance value</span><b>≈ $' + fmt(S.balance * price, 4) + '</b></div>' : '') +
+    '<div class="kv"><span>On-chain holdings (TON in wallet)</span><b>' + (S.onchain_ton == null ? '—' : fmt(S.onchain_ton, 3) + ' TON') + '</b></div></div>' +
+    '<div class="card"><b>Withdrawal requirements</b>' +
+    req(hasW, 'Tonkeeper connected', hasW ? esc(w.short) : 'Wallet not connected',
+      hasW ? '' : '<button class="btn sm primary" data-act="wallet">Connect</button>') +
+    req(hasW && w.age_ok, 'Wallet is ' + w.min_days + ' days old', ageSub, '') +
+    req(S.verified, 'Account verified (' + S.fee + ' TON, one-time)', S.verified ? 'Verification complete' : 'One-time fee, non-refundable',
+      S.verified ? '' : '<button class="btn sm primary" data-act="verify"' + (canVerify ? '' : ' disabled') + '>Verify</button>') +
+    '</div>' +
+    '<div class="card stack"><b>💸 Withdraw</b>' +
+    (wdNote ? '<div class="' + (canWd ? 'muted' : 'lock') + '">' + esc(wdNote) + '</div>' : '') +
+    '<button class="btn primary big" data-act="withdraw"' + (canWd ? '' : ' disabled') + '>Withdraw</button></div></div>';
+}
+
+/* ---------- Render ---------- */
+function renderView() {
+  const map = { mining: viewMining, tasks: viewTasks, friends: viewFriends, profile: viewProfile };
+  $('#view').innerHTML = map[TAB]();
+  if (TAB === 'profile') {
+    const u = S.user, name = u.first_name || u.username || 'User';
+    $('#pAv').innerHTML = esc((name[0] || 'U').toUpperCase()) + (u.photo_url ? '<img src="' + esc(u.photo_url) + '" referrerpolicy="no-referrer" alt="" onerror="this.remove()">' : '');
+  }
+  S._st = miningState();
+  if (TAB === 'mining') tickMining();
+}
+function renderAll() { renderHeader(); renderNav(); renderView(); }
+
+async function load() {
+  const r = await api('/api/state');
+  if (!r.ok) throw r;
+  S = r; S._at = Date.now();
+  renderAll();
+}
+
+/* ---------- Actions ---------- */
+async function guarded(fn) {
+  if (busy) return; busy = true;
+  try { await fn(); } catch (e) { toast('Network error, please try again.'); } finally { busy = false; }
+}
+
+async function doMine() {
+  if (!S.wallet.address) return openWallet();
+  await guarded(async () => {
+    const r = await api('/api/mine', 'POST');
+    if (!r.ok) toast(errText(r));
+    else { haptic('success'); toast(r.action === 'claimed' ? '+' + fmt(r.reward) + ' ' + S.coin.name + ' claimed' : 'Mining started'); }
+    await load();
+  });
+}
+
+function openWallet() {
+  if (!S.wallet.address) {
+    if (tc) tc.openModal(); else toast('Wallet module not loaded, please refresh the page.');
+    return;
+  }
+  openSheet('<div class="stack"><b style="font-size:18px">Your wallet</b>' +
+    '<div class="link-box"><span style="flex:1">' + esc(S.wallet.address) + '</span></div>' +
+    '<button class="btn" data-act="copy" data-text="' + esc(S.wallet.address) + '">Copy address</button>' +
+    (S.verified ? '<div class="lock">A verified wallet cannot be changed or disconnected.</div>'
+                : '<button class="btn danger" data-act="disconnect">Disconnect</button>') +
+    '</div>');
+}
+
+async function doDisconnect() {
+  await guarded(async () => {
+    const r = await api('/api/wallet/disconnect', 'POST');
+    if (!r.ok) { toast(errText(r)); return; }
+    lastPosted = null;
+    try { if (tc && tc.connected) await tc.disconnect(); } catch (e) {}
+    closeSheet(); toast('Wallet disconnected');
+    await load();
+  });
+}
+
+async function startVerify() {
+  await guarded(async () => {
+    const r = await api('/api/verify/start', 'POST');
+    if (!r.ok) { toast(errText(r)); return; }
+    openSheet('<div class="stack"><b style="font-size:18px">🛡 Account verification</b>' +
+      '<div class="card" style="background:var(--card2)"><div class="kv"><span>Fee</span><b>' + r.fee + ' TON (one-time)</b></div>' +
+      '<div class="muted" style="margin-top:8px;line-height:1.5">' + esc(r.note) + '</div></div>' +
+      '<div class="lock">Pay only from your connected wallet (' + esc(S.wallet.short) + ') and do not change the comment/memo.</div>' +
+      '<div class="muted">Comment code: <b style="color:var(--tx)">' + esc(r.code) + '</b></div>' +
+      '<button class="btn primary big" data-act="verify_pay" data-url="' + esc(r.pay_url) + '">💳 Pay ' + r.fee + ' TON</button>' +
+      '<button class="btn" data-act="verify_check">🔄 I have paid, check now</button>' +
+      '<div class="muted" style="text-align:center">It may take 1-2 minutes to confirm after payment.</div></div>');
+  });
+}
+
+async function checkVerify() {
+  await guarded(async () => {
+    const r = await api('/api/verify/check', 'POST');
+    if (!r.ok) { toast(errText(r)); return; }
+    haptic('success'); closeSheet(); toast('🎉 Verification complete!');
+    await load();
+  });
+}
+
+function confirmWithdraw() {
+  openSheet('<div class="stack"><b style="font-size:18px">💸 Confirm withdrawal</b>' +
+    '<div class="card" style="background:var(--card2)"><div class="kv"><span>Amount</span><b>' + fmt(S.balance) + ' ' + esc(S.coin.name) + '</b></div>' +
+    '<div class="kv"><span>Wallet</span><b>' + esc(S.wallet.short) + '</b></div></div>' +
+    '<div class="muted">Your full balance will be submitted as a withdrawal request and an admin will review and process it.</div>' +
+    '<button class="btn primary big" data-act="withdraw_ok">✅ Confirm</button></div>');
+}
+
+async function doWithdraw() {
+  await guarded(async () => {
+    const r = await api('/api/withdraw', 'POST');
+    closeSheet();
+    if (!r.ok) { toast(errText(r)); await load(); return; }
+    haptic('success'); toast('Withdrawal request #' + r.id + ' submitted');
+    await load();
+  });
+}
+
+async function claimRef() {
+  await guarded(async () => {
+    const r = await api('/api/referral/claim', 'POST');
+    if (!r.ok) toast(errText(r)); else { haptic('success'); toast('+' + fmt(r.amount) + ' ' + S.coin.name + ' claimed'); }
+    await load();
+  });
+}
+
+async function taskStart(el) {
+  const id = +el.dataset.id, url = el.dataset.url;
+  await guarded(async () => {
+    const r = await api('/api/task/start', 'POST', { id });
+    if (!r.ok) { toast(errText(r)); return; }
+    openLink(url);
+    await load();
+  });
+}
+async function taskClaim(el) {
+  await guarded(async () => {
+    const r = await api('/api/task/claim', 'POST', { id: +el.dataset.id });
+    if (!r.ok) toast(r.code === 'TOO_EARLY' ? 'Please wait ' + Math.ceil(r.wait) + ' more seconds' : errText(r));
+    else { haptic('success'); toast('You received +' + fmt(r.reward) + ' ' + S.coin.name); }
+    await load();
+  });
+}
+async function taskAdd() {
+  await guarded(async () => {
+    const r = await api('/api/admin/task_add', 'POST', {
+      title: $('#tTitle').value, reward: $('#tReward').value, kind: $('#tKind').value, target: $('#tTarget').value
+    });
+    if (!r.ok) { toast(errText(r)); return; }
+    toast('Task added'); await load();
+  });
+}
+async function taskDel(el) {
+  await guarded(async () => {
+    const r = await api('/api/admin/task_del', 'POST', { id: +el.dataset.id });
+    if (!r.ok) toast(errText(r)); else toast('Task deleted');
+    await load();
+  });
+}
+
+const ACTS = {
+  tab: el => { TAB = el.dataset.tab; renderNav(); renderView(); $('#view').scrollTop = 0; },
+  wallet: openWallet, close: closeSheet, disconnect: doDisconnect,
+  mine: doMine, verify: startVerify, verify_check: checkVerify,
+  verify_pay: el => openLink(el.dataset.url),
+  withdraw: confirmWithdraw, withdraw_ok: doWithdraw, claim_ref: claimRef,
+  copy: el => copyText(el.dataset.text),
+  share: () => openLink('https://t.me/share/url?url=' + encodeURIComponent(S.referral.link) +
+    '&text=' + encodeURIComponent('⛏ Join ' + S.coin.name + ' mining and earn coins!')),
+  task_start: taskStart, task_claim: taskClaim, task_add: taskAdd, task_del: taskDel
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const fn = ACTS[el.dataset.act];
+  if (fn) fn(el);
+});
+
+/* ---------- TON Connect (real) ---------- */
+function initTonConnect() {
+  try {
+    tc = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: location.origin + '/tonconnect-manifest.json' });
+  } catch (e) { tc = null; return; }
+  tc.onStatusChange(async w => {
+    if (!w || !w.account) return;
+    const addr = w.account.address;               // raw form "0:<hex>"
+    if (!S || (S.wallet.address || '').toLowerCase() === addr.toLowerCase() || lastPosted === addr) return;
+    lastPosted = addr;
+    const r = await api('/api/wallet', 'POST', { address: addr });
+    if (r.ok) { toast('Wallet connected'); haptic('success'); await load(); }
+    else {
+      toast(errText(r));
+      lastPosted = null;
+      if (r.code !== 'WALLET_LOCKED') { try { await tc.disconnect(); } catch (e) {} }
+    }
+  });
+}
+
+/* ---------- Boot ---------- */
+(async function boot() {
+  if (!tg || !tg.initData) {
+    $('#splash').textContent = 'Please open this app only from inside the Telegram bot.';
+    return;
+  }
+  tg.ready(); tg.expand();
+  try { tg.setHeaderColor('#0b0f1a'); tg.setBackgroundColor('#0b0f1a'); tg.disableVerticalSwipes && tg.disableVerticalSwipes(); } catch (e) {}
+  try {
+    await load();
+  } catch (e) {
+    $('#splash').textContent = (e && e.code && T.err[e.code]) || 'Could not load. Please try again.';
+    return;
+  }
+  $('#splash').remove();
+  initTonConnect();
+  setInterval(tickMining, 1000);
+  setInterval(() => { if (!busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 45000);
+})();
+</script>
+</body>
+</html>
