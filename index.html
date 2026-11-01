@@ -498,7 +498,7 @@ function confirmWithdraw() {
   openSheet('<div class="stack"><b style="font-size:18px">💸 Confirm withdrawal</b>' +
     '<div class="card" style="background:var(--card2)"><div class="kv"><span>Amount</span><b>' + fmt(S.balance) + ' ' + esc(S.coin.name) + '</b></div>' +
     '<div class="kv"><span>Wallet</span><b>' + esc(S.wallet.short) + '</b></div></div>' +
-    '<div class="muted">Your full balance will be submitted as a withdrawal request and an admin will review and process it.</div>' +
+    '<div class="muted">Your full balance will be submitted as a withdrawal request. Requests are reviewed and paid manually within 24-48 hours.</div>' +
     '<button class="btn primary big" data-act="withdraw_ok">✅ Confirm</button></div>');
 }
 
