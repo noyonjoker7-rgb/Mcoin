@@ -613,7 +613,7 @@ function initTonConnect() {
   $('#splash').remove();
   initTonConnect();
   setInterval(tickMining, 1000);
-  setInterval(() => { if (!busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 45000);
+ setInterval(() => { if (!document.hidden && !busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 300000);
 })();
 </script>
 </body>
