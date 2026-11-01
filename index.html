@@ -117,13 +117,14 @@ body{background:#05070d}
 <script>
 "use strict";
 const _tw = window.Telegram && window.Telegram.WebApp;
-const tg = (_tw && _tw.initData) ? _tw : { initData: 'local', initDataUnsafe: {}, ready(){}, expand(){}, setHeaderColor(){}, setBackgroundColor(){},
+const tg = (_tw && _tw.initData) ? _tw : { initData: '', ready(){}, expand(){}, setHeaderColor(){}, setBackgroundColor(){},
   openLink(u){ window.open(u, '_blank'); }, openTelegramLink(u){ window.open(u, '_blank'); } };
 const RING_C = 2 * Math.PI * 96;
+const API = 'https://mcoin-api.noyonbormon36.workers.dev';
 
 /* ---------- Text ---------- */
 const T = {
-  nav: { mining: 'Mining', tasks: 'Tasks', friends: 'Friends', profile: 'Profile' },
+  nav: { mining: 'Mining', tasks: 'Tasks', friends: 'Friends', profile: 'Profile', admin: 'Admin' },
   err: {
     UNAUTHORIZED: 'Please open the app from inside Telegram.',
     SERVER_ERROR: 'Something went wrong on the server. Please try again.',
@@ -160,6 +161,7 @@ const I = {
   tasks: '<svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   friends: '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   profile: '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  admin: '<svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
   wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>',
   check: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
 };
@@ -172,122 +174,16 @@ const pad = n => String(n).padStart(2, '0');
 const fmtTime = s => { s = Math.max(0, Math.floor(s)); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); };
 
 let S = null, TAB = 'mining', tc = null, busy = false, lastPosted = null;
+let ADM = null, ADM_AT = 0;
 
-/* ====== CONFIG (edit here) ====== */
-const CFG = {
-  coin: 'MCoin', priceUsd: 0.001,          // 1000 MCoin = 1 USDT
-  hours: 24, reward: 40,                   // 40 coins every 24 hours
-  refBonus: 100, minDays: 7, fee: 0.05, minWithdraw: 1000, taskWait: 10,
-  owner: 'UQAA25KEB8N0k7d_OgLj5t3TR7Aq5otTXLNcW_HO_OQzzjmf',
-  toncenter: 'https://toncenter.com/api/v3',
-  toncenterKey: 'b24d14fe62faaee5e7d629a98904352999e38d2661b72a8a7d378277abd8cd44',
-  bot: 'mcoinmining009_bot',
-  tasks: [   // kind: 'link' or 'channel'  (channel here is only a link: joins cannot be verified without a server)
-    { id: 1, title: 'Join the official channel', reward: 25, kind: 'channel', url: 'https://t.me/telegram' },
-    { id: 2, title: 'Visit the website', reward: 10, kind: 'link', url: 'https://example.com' }
-  ]
-};
-
-/* ====== Browser-only backend (data is saved in this device's localStorage) ====== */
-const TU = (tg.initDataUnsafe && tg.initDataUnsafe.user) || { id: 0, first_name: 'Guest' };
-const KEY = 'mcoin_v1_' + TU.id;
-const blank = () => ({ balance: 0, earned: 0, mineStart: null, wallet: '', since: null, verified: false, code: '', wd: null, wdId: 0, tasks: {} });
-let D = blank();
-try { D = Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) {} };
-const now = () => Math.floor(Date.now() / 1000);
-const shortA = a => a ? a.slice(0, 5) + '…' + a.slice(-5) : '';
-const bad = (code, x) => Object.assign({ ok: false, code }, x || {});
-const MINE_SEC = CFG.hours * 3600;
-
-async function tonGet(path, params) {
-  const r = await fetch(CFG.toncenter + path + '?' + new URLSearchParams(params), { headers: { 'X-API-Key': CFG.toncenterKey } });
-  if (!r.ok) throw new Error('ton ' + r.status);
-  return r.json();
-}
-async function refreshAge() {
-  if (!D.wallet || D.since) return;
-  try {
-    const d = await tonGet('/transactions', { account: D.wallet, limit: 1, sort: 'asc' });
-    if (d.transactions && d.transactions[0]) { D.since = +d.transactions[0].now; save(); }
-  } catch (e) {}
-}
-const ageDays = () => D.since ? Math.floor((now() - D.since) / 86400) : null;
-const ageOk = () => !!D.wallet && ageDays() !== null && ageDays() >= CFG.minDays;
-
-async function buildState() {
-  await refreshAge();
-  let ton = null;
-  if (D.wallet) { try { ton = (+(await tonGet('/account', { address: D.wallet })).balance) / 1e9; } catch (e) {} }
-  const started = D.mineStart !== null;
-  return { ok: true, user: { id: TU.id, first_name: TU.first_name, username: TU.username || '', photo_url: TU.photo_url || '' },
-    is_admin: false, balance: D.balance, earned: D.earned,
-    coin: { name: CFG.coin, price_usd: CFG.priceUsd, mine_reward: CFG.reward, mine_hours: CFG.hours, mine_seconds: MINE_SEC },
-    mining: { started, left: started ? Math.max(0, MINE_SEC - (now() - D.mineStart)) : null },
-    wallet: { address: D.wallet, short: shortA(D.wallet), since: D.since, age_days: ageDays(), age_ok: ageOk(), min_days: CFG.minDays },
-    verified: D.verified, fee: CFG.fee, min_withdraw: CFG.minWithdraw, withdraw_pending: D.wd, onchain_ton: ton,
-    referral: { count: 0, pending: 0, bonus: CFG.refBonus, link: 'https://t.me/' + CFG.bot + '?start=' + TU.id, friends: [] },
-    tasks: CFG.tasks.map(t => { const u = D.tasks[t.id];
-      return { id: t.id, title: t.title, reward: t.reward, kind: t.kind, url: t.url,
-        status: u && u.done ? 'done' : (u ? 'started' : 'new'),
-        wait_left: u && !u.done ? Math.max(0, CFG.taskWait - (now() - u.started)) : 0 }; }),
-    task_wait: CFG.taskWait };
-}
-
+/* ---------- Server API (Cloudflare Worker) ---------- */
 async function api(path, method, body) {
-  body = body || {};
-  switch (path) {
-    case '/api/state': return buildState();
-    case '/api/mine':
-      if (!D.wallet) return bad('WALLET_REQUIRED');
-      if (D.mineStart === null) { D.mineStart = now(); save(); return { ok: true, action: 'started' }; }
-      if (now() - D.mineStart < MINE_SEC) return bad('NOT_READY');
-      D.balance += CFG.reward; D.earned += CFG.reward; D.mineStart = now(); save();
-      return { ok: true, action: 'claimed', reward: CFG.reward };
-    case '/api/wallet':
-      if (D.verified) return bad('WALLET_LOCKED');
-      D.wallet = body.address; D.since = null; save(); return { ok: true };
-    case '/api/wallet/disconnect':
-      if (D.verified) return bad('WALLET_LOCKED');
-      D.wallet = ''; D.since = null; save(); return { ok: true };
-    case '/api/verify/start': {
-      if (!D.wallet) return bad('WALLET_REQUIRED'); if (D.verified) return bad('ALREADY_VERIFIED');
-      await refreshAge(); if (!D.since) return bad('AGE_UNKNOWN'); if (!ageOk()) return bad('AGE_LOW');
-      if (!D.code) D.code = 'VF' + Math.random().toString(16).slice(2, 10).toUpperCase(); save();
-      return { ok: true, code: D.code, owner: CFG.owner, fee: CFG.fee,
-        pay_url: 'https://app.tonkeeper.com/transfer/' + CFG.owner + '?amount=' + Math.round(CFG.fee * 1e9) + '&text=' + D.code,
-        note: 'This fee is paid only once and is non-refundable. It is charged to prevent fake/multiple accounts.' };
-    }
-    case '/api/verify/check': {
-      if (D.verified) return bad('ALREADY_VERIFIED'); if (!D.code) return bad('NO_PENDING');
-      let d; try { d = await tonGet('/transactions', { account: CFG.owner, limit: 50, sort: 'desc' }); } catch (e) { return bad('CHECK_FAILED'); }
-      const need = Math.round(CFG.fee * 1e9);
-      for (const tx of (d.transactions || [])) {
-        const m = tx.in_msg || {};
-        const c = ((m.message_content || {}).decoded || {}).comment || '';
-        if (c.trim() === D.code && +(m.value || 0) >= need && String(m.source || '').toLowerCase() === D.wallet.toLowerCase()) {
-          D.verified = true; save(); return { ok: true, verified: true };
-        }
-      }
-      return bad('NOT_PAID_YET');
-    }
-    case '/api/withdraw':
-      if (!D.wallet) return bad('WALLET_REQUIRED'); if (!ageOk()) return bad('AGE_LOW');
-      if (!D.verified) return bad('NOT_VERIFIED'); if (D.wd) return bad('PENDING_EXISTS');
-      if (D.balance < CFG.minWithdraw) return bad('MIN_BALANCE');
-      D.wdId++; D.wd = { id: D.wdId, amount: D.balance }; D.balance = 0; save();
-      return { ok: true, id: D.wdId, amount: D.wd.amount };
-    case '/api/referral/claim': return bad('NOTHING_TO_CLAIM');
-    case '/api/task/start': { const t = CFG.tasks.find(x => x.id === body.id); if (!t) return bad('TASK_NOT_FOUND');
-      if (!D.tasks[t.id]) { D.tasks[t.id] = { started: now(), done: 0 }; save(); } return { ok: true }; }
-    case '/api/task/claim': {
-      const t = CFG.tasks.find(x => x.id === body.id); if (!t) return bad('TASK_NOT_FOUND');
-      const u = D.tasks[t.id]; if (!u) return bad('TASK_NOT_STARTED'); if (u.done) return bad('TASK_DONE');
-      const left = CFG.taskWait - (now() - u.started); if (left > 0) return bad('TOO_EARLY', { wait: left });
-      u.done = 1; D.balance += t.reward; D.earned += t.reward; save(); return { ok: true, reward: t.reward };
-    }
-  }
-  return bad('SERVER_ERROR');
+  const r = await fetch(API + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Init-Data': tg.initData || '' },
+    body: JSON.stringify(body || {})
+  });
+  try { return await r.json(); } catch (e) { return { ok: false, code: 'SERVER_ERROR' }; }
 }
 
 let toastTimer;
@@ -331,7 +227,8 @@ function renderHeader() {
 }
 
 function renderNav() {
-  $('#nav').innerHTML = ['mining', 'tasks', 'friends', 'profile'].map(k =>
+  const tabs = ['mining', 'tasks', 'friends', 'profile'].concat(S && S.is_admin ? ['admin'] : []);
+  $('#nav').innerHTML = tabs.map(k =>
     '<button class="' + (TAB === k ? 'on' : '') + '" data-act="tab" data-tab="' + k + '"><span class="ni">' + I[k] + '</span>' + T.nav[k] + '</button>'
   ).join('');
 }
@@ -478,9 +375,40 @@ function viewProfile() {
     '<button class="btn primary big" data-act="withdraw"' + (canWd ? '' : ' disabled') + '>Withdraw</button></div></div>';
 }
 
+/* ---------- Admin ---------- */
+async function loadAdmin() {
+  ADM_AT = Date.now();
+  const r = await api('/api/admin/withdrawals', 'POST');
+  if (r.ok) { ADM = r; if (TAB === 'admin') renderView(); }
+}
+function viewAdmin() {
+  if (!ADM || Date.now() - ADM_AT > 20000) loadAdmin();
+  if (!ADM) return '<div class="h">Admin</div><div class="card muted" style="text-align:center">Loading…</div>';
+  let h = '<div class="h">Admin</div><div class="stack">' +
+    '<div class="grid2"><div class="stat"><small>Users</small><b>' + ADM.users + '</b></div>' +
+    '<div class="stat"><small>Total balance</small><b>' + fmt(ADM.total_balance) + '</b></div></div>' +
+    '<b>Pending withdrawals</b>';
+  if (!ADM.list.length) h += '<div class="card muted" style="text-align:center">No pending requests.</div>';
+  ADM.list.forEach(w => {
+    h += '<div class="card stack"><div class="kv"><span>#' + w.id + ' · ' + esc(w.name) + '</span><b>' + fmt(w.amount) + ' ' + esc(S.coin.name) + '</b></div>' +
+      '<div class="link-box"><span style="flex:1">' + esc(w.wallet) + '</span></div>' +
+      '<div class="grid2"><button class="btn" data-act="copy" data-text="' + esc(w.wallet) + '">Copy wallet</button>' +
+      '<button class="btn primary" data-act="wd_done" data-id="' + w.id + '">Mark paid</button></div>' +
+      '<button class="btn danger" data-act="wd_reject" data-id="' + w.id + '">Reject &amp; refund</button></div>';
+  });
+  return h + '</div>';
+}
+async function wdAct(el, kind) {
+  await guarded(async () => {
+    const r = await api('/api/admin/withdraw_' + kind, 'POST', { id: +el.dataset.id });
+    if (!r.ok) toast(errText(r)); else toast(kind === 'done' ? 'Marked as paid' : 'Rejected and refunded');
+    ADM = null; renderView();
+  });
+}
+
 /* ---------- Render ---------- */
 function renderView() {
-  const map = { mining: viewMining, tasks: viewTasks, friends: viewFriends, profile: viewProfile };
+  const map = { mining: viewMining, tasks: viewTasks, friends: viewFriends, profile: viewProfile, admin: viewAdmin };
   $('#view').innerHTML = map[TAB]();
   if (TAB === 'profile') {
     const u = S.user, name = u.first_name || u.username || 'User';
@@ -524,8 +452,8 @@ function openWallet() {
     return;
   }
   openSheet('<div class="stack"><b style="font-size:18px">Your wallet</b>' +
-    '<div class="link-box"><span style="flex:1">' + esc(S.wallet.address) + '</span></div>' +
-    '<button class="btn" data-act="copy" data-text="' + esc(S.wallet.address) + '">Copy address</button>' +
+    '<div class="link-box"><span style="flex:1">' + esc(S.wallet.friendly || S.wallet.address) + '</span></div>' +
+    '<button class="btn" data-act="copy" data-text="' + esc(S.wallet.friendly || S.wallet.address) + '">Copy address</button>' +
     (S.verified ? '<div class="lock">A verified wallet cannot be changed or disconnected.</div>'
                 : '<button class="btn danger" data-act="disconnect">Disconnect</button>') +
     '</div>');
@@ -635,7 +563,8 @@ const ACTS = {
   copy: el => copyText(el.dataset.text),
   share: () => openLink('https://t.me/share/url?url=' + encodeURIComponent(S.referral.link) +
     '&text=' + encodeURIComponent('⛏ Join ' + S.coin.name + ' mining and earn coins!')),
-  task_start: taskStart, task_claim: taskClaim, task_add: taskAdd, task_del: taskDel
+  task_start: taskStart, task_claim: taskClaim, task_add: taskAdd, task_del: taskDel,
+  wd_done: el => wdAct(el, 'done'), wd_reject: el => wdAct(el, 'reject')
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
