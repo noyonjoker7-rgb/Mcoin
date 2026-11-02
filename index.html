@@ -6,6 +6,7 @@
 <title>MCoin Mining</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <style>
 :root{--bg:#0b0f1a;--card:#141b2b;--card2:#1a2438;--line:rgba(255,255,255,.07);--tx:#eef2ff;--mut:#8b97b3;--a1:#27a7ff;--a2:#8b5cf6;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--r:18px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -121,6 +122,8 @@ const tg = (_tw && _tw.initData) ? _tw : { initData: '', ready(){}, expand(){}, 
   openLink(u){ window.open(u, '_blank'); }, openTelegramLink(u){ window.open(u, '_blank'); } };
 const RING_C = 2 * Math.PI * 96;
 const API = 'https://mcoin-api.noyonbormon36.workers.dev';
+/* Ads: paste your AdsGram blockId here (leave empty to turn ads off) */
+const ADS = { blockId: '', onOpen: 0, onClaim: 3 };
 
 /* ---------- Text ---------- */
 const T = {
@@ -432,8 +435,28 @@ async function guarded(fn) {
   try { await fn(); } catch (e) { toast('Network error, please try again.'); } finally { busy = false; }
 }
 
+let adCtl = null;
+function initAds() {
+  try { if (ADS.blockId && window.Adsgram) adCtl = window.Adsgram.init({ blockId: ADS.blockId }); } catch (e) { adCtl = null; }
+}
+/* Plays n ads one after another. Returns false if the user left an ad before it finished. */
+async function playAds(n) {
+  if (!adCtl) return true;                    // ads not set up: let the user continue
+  for (let i = 0; i < n; i++) {
+    try { await adCtl.show(); }
+    catch (r) { if (r && r.error) continue; return false; }   // technical/no-ad error: skip it; closed early: stop
+  }
+  return true;
+}
+
 async function doMine() {
   if (!S.wallet.address) return openWallet();
+  if (miningState() === 'ready' && !busy) {
+    busy = true;
+    let ok = false;
+    try { ok = await playAds(ADS.onClaim); } finally { busy = false; }
+    if (!ok) { toast('Please watch all the ads to claim your coins.'); return; }
+  }
   await guarded(async () => {
     const r = await api('/api/mine', 'POST');
     if (!r.ok) toast(errText(r));
@@ -599,7 +622,18 @@ function initTonConnect() {
 /* ---------- Boot ---------- */
 (async function boot() {
   if (!tg || !tg.initData) {
-    $('#splash').textContent = 'Please open this app only from inside the Telegram bot.';
+    $('#splash').innerHTML =
+      '<div style="width:100%;max-width:420px;text-align:left;color:var(--tx)">' +
+      '<div style="font-size:26px;font-weight:800;margin-bottom:6px">⛏ MCoin Mining</div>' +
+      '<p class="muted" style="font-size:14px;line-height:1.5">A Telegram Mini App with its own server and database. Mine MCoin in 24-hour sessions, complete tasks, invite friends and request withdrawals to your TON wallet.</p>' +
+      '<div class="card" style="margin:14px 0">' +
+      '<div class="kv"><span>Mining</span><b>24h sessions, claim +40</b></div>' +
+      '<div class="kv"><span>Tasks</span><b>Channel and link tasks</b></div>' +
+      '<div class="kv"><span>Referrals</span><b>Invite link, +100 per friend</b></div>' +
+      '<div class="kv"><span>Wallet</span><b>TON Connect (Tonkeeper)</b></div>' +
+      '<div class="kv"><span>Withdrawals</span><b>Verified accounts, admin reviewed</b></div></div>' +
+      '<a class="btn primary big" href="https://t.me/mcoinmining009_bot/mining" style="text-decoration:none;color:#fff">Open in Telegram</a>' +
+      '<p class="muted" style="text-align:center;margin-top:12px">This app runs inside Telegram. Tap the button above to open it.</p></div>';
     return;
   }
   tg.ready(); tg.expand();
@@ -610,10 +644,19 @@ function initTonConnect() {
     $('#splash').textContent = (e && e.code && T.err[e.code]) || 'Could not load. Please try again.';
     return;
   }
+  initAds();
+  let adOk = await playAds(ADS.onOpen);
+  while (!adOk) {
+    await new Promise(res => {
+      $('#splash').innerHTML = '<div style="width:100%;max-width:300px"><p>Please watch the short ad to continue.</p><button class="btn primary" id="adBtn">▶ Watch ad</button></div>';
+      $('#adBtn').onclick = res;
+    });
+    adOk = await playAds(ADS.onOpen);
+  }
   $('#splash').remove();
   initTonConnect();
   setInterval(tickMining, 1000);
- setInterval(() => { if (!document.hidden && !busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 300000);
+  setInterval(() => { if (!document.hidden && !busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 300000);
 })();
 </script>
 </body>
