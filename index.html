@@ -6,7 +6,6 @@
 <title>MCoin Mining</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.0.9/dist/tonconnect-ui.min.js"></script>
-<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 <style>
 :root{--bg:#0b0f1a;--card:#141b2b;--card2:#1a2438;--line:rgba(255,255,255,.07);--tx:#eef2ff;--mut:#8b97b3;--a1:#27a7ff;--a2:#8b5cf6;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--r:18px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -122,8 +121,8 @@ const tg = (_tw && _tw.initData) ? _tw : { initData: '', ready(){}, expand(){}, 
   openLink(u){ window.open(u, '_blank'); }, openTelegramLink(u){ window.open(u, '_blank'); } };
 const RING_C = 2 * Math.PI * 96;
 const API = 'https://mcoin-api.noyonbormon36.workers.dev';
-/* Ads: paste your AdsGram blockId here (leave empty to turn ads off) */
-const ADS = { blockId: '', onOpen: 0, onClaim: 3 };
+/* Ads are OFF. No ad network is connected yet. Forced ads are not used (ad networks do not allow them). */
+const ADS = { blockId: '', onOpen: 0, onClaim: 0 };
 
 /* ---------- Text ---------- */
 const T = {
