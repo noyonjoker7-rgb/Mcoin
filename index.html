@@ -154,7 +154,8 @@ const T = {
     TOO_EARLY: 'Please wait a bit and try again.',
     NOT_JOINED: 'You have not joined yet.',
     FORBIDDEN: 'Not allowed.',
-    BAD_TASK: 'The task details are invalid.'
+    BAD_TASK: 'The task details are invalid.',
+    BLOCKED: 'Your account has been blocked. Please contact the admin.'
   }
 };
 const errText = r => (T.err[r.code] || 'Something went wrong.');
@@ -179,6 +180,7 @@ const fmtTime = s => { s = Math.max(0, Math.floor(s)); return pad(Math.floor(s /
 
 let S = null, TAB = 'mining', tc = null, busy = false, lastPosted = null;
 let ADM = null, ADM_AT = 0;
+let ADM_SEG = 'wd', AU = null, AU_AT = 0, AU_Q = '', AU_LIM = 30, AD = null, AD_ID = null, AD_LOADING = false;
 
 /* ---------- Server API (Cloudflare Worker) ---------- */
 async function api(path, method, body) {
@@ -381,18 +383,34 @@ function viewProfile() {
 }
 
 /* ---------- Admin ---------- */
+const dt = s => s ? new Date(s * 1000).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+function avatarHtml(name, photo, size) {
+  const ini = esc(((name || 'U')[0] || 'U').toUpperCase());
+  return '<div class="avatar" style="width:' + size + 'px;height:' + size + 'px;font-size:' + Math.round(size * 0.4) + 'px">' + ini +
+    (photo ? '<img src="' + esc(photo) + '" referrerpolicy="no-referrer" alt="" onerror="this.remove()">' : '') + '</div>';
+}
 async function loadAdmin() {
   ADM_AT = Date.now();
   const r = await api('/api/admin/withdrawals', 'POST');
   if (r.ok) { ADM = r; if (TAB === 'admin') renderView(); }
 }
-function viewAdmin() {
-  if (!ADM || Date.now() - ADM_AT > 20000) loadAdmin();
-  if (!ADM) return '<div class="h">Admin</div><div class="card muted" style="text-align:center">Loading…</div>';
-  let h = '<div class="h">Admin</div><div class="stack">' +
-    '<div class="grid2"><div class="stat"><small>Users</small><b>' + ADM.users + '</b></div>' +
-    '<div class="stat"><small>Total balance</small><b>' + fmt(ADM.total_balance) + '</b></div></div>' +
-    '<b>Pending withdrawals</b>';
+async function loadAdminUsers() {
+  AU_AT = Date.now();
+  const r = await api('/api/admin/users', 'POST', { q: AU_Q, limit: AU_LIM });
+  if (r.ok) { AU = r; if (TAB === 'admin') renderView(); }
+}
+async function loadAdminUser() {
+  const id = AD_ID; AD_LOADING = true;
+  try {
+    const r = await api('/api/admin/user', 'POST', { id });
+    if (r.ok && AD_ID === id) AD = r;
+    else if (!r.ok) { toast(errText(r)); AD_ID = null; }
+  } catch (e) { AD_ID = null; }
+  AD_LOADING = false;
+  if (TAB === 'admin') renderView();
+}
+function wdHtml() {
+  let h = '<b>Pending withdrawals</b>';
   if (!ADM.list.length) h += '<div class="card muted" style="text-align:center">No pending requests.</div>';
   ADM.list.forEach(w => {
     h += '<div class="card stack"><div class="kv"><span>#' + w.id + ' · ' + esc(w.name) + '</span><b>' + fmt(w.amount) + ' ' + esc(S.coin.name) + '</b></div>' +
@@ -401,13 +419,86 @@ function viewAdmin() {
       '<button class="btn primary" data-act="wd_done" data-id="' + w.id + '">Mark paid</button></div>' +
       '<button class="btn danger" data-act="wd_reject" data-id="' + w.id + '">Reject &amp; refund</button></div>';
   });
-  return h + '</div>';
+  return h;
+}
+function usersHtml() {
+  if (!AU || Date.now() - AU_AT > 20000) loadAdminUsers();
+  let h = '<div class="row"><input class="field" id="auQ" style="flex:1" placeholder="Search name, @username or ID" value="' + esc(AU_Q) + '">' +
+    '<button class="btn sm primary" data-act="au_search">Search</button></div>';
+  if (!AU) return h + '<div class="card muted" style="text-align:center">Loading…</div>';
+  if (!AU.list.length) h += '<div class="card muted" style="text-align:center">No users found.</div>';
+  AU.list.forEach(u => {
+    h += '<div class="item" data-act="au_open" data-id="' + u.id + '" style="cursor:pointer">' + avatarHtml(u.name, u.photo_url, 42) +
+      '<div class="grow"><b>' + esc(u.name) + (u.blocked ? ' <span class="chip" style="background:rgba(239,68,68,.14);color:#fca5a5">Blocked</span>' : '') + '</b>' +
+      '<span class="muted">' + (u.username ? '@' + esc(u.username) + ' · ' : '') + 'ID ' + u.id + '</span></div>' +
+      '<span class="muted" style="text-align:right">' + fmt(u.balance) + '</span></div>';
+  });
+  if (AU.list.length >= AU_LIM) h += '<button class="btn" data-act="au_more">Show more</button>';
+  return h;
+}
+function viewAdminUser() {
+  const back = '<button class="btn sm" data-act="au_back">← Back</button>';
+  if (!AD || AD.user.id !== AD_ID) {
+    if (!AD_LOADING) loadAdminUser();
+    return back + '<div class="card muted" style="text-align:center;margin-top:12px">Loading…</div>';
+  }
+  const u = AD.user;
+  let h = '<div class="stack">' + back +
+    '<div class="prof-head">' + avatarHtml(u.name, u.photo_url, 76) + '<b style="font-size:18px">' + esc(u.name) + '</b>' +
+    '<span class="muted">' + (u.username ? '@' + esc(u.username) + ' · ' : '') + 'ID ' + u.id + '</span>' +
+    (u.blocked ? '<span class="chip" style="background:rgba(239,68,68,.14);color:#fca5a5">Blocked</span>' : '') + '</div>' +
+    '<div class="grid2"><div class="stat"><small>Balance</small><b>' + fmt(u.balance) + '</b></div>' +
+    '<div class="stat"><small>Total earned</small><b>' + fmt(u.earned) + '</b></div></div>' +
+    '<div class="card">' +
+    '<div class="kv"><span>Joined</span><b style="font-size:13px">' + dt(u.created_at) + '</b></div>' +
+    '<div class="kv"><span>Verified</span><b>' + (u.verified ? 'Yes' : 'No') + '</b></div>' +
+    '<div class="kv"><span>Mining</span><b style="font-size:13px">' + (u.mine_start ? 'Started ' + dt(u.mine_start) : 'Not started') + '</b></div>' +
+    '<div class="kv"><span>Tasks completed</span><b>' + AD.tasks_done + '</b></div>' +
+    '<div class="kv"><span>Friends invited</span><b>' + AD.friends + '</b></div>' +
+    '<div class="kv"><span>Referral coins waiting</span><b>' + fmt(u.ref_pending) + '</b></div>' +
+    '<div class="kv"><span>Invited by</span><b style="font-size:13px">' + (u.referrer ? esc(u.referrer) + ' (' + u.referred_by + ')' : '—') + '</b></div></div>' +
+    '<div class="card stack"><b>Wallet</b>' +
+    (u.wallet ? '<div class="link-box"><span style="flex:1">' + esc(u.wallet) + '</span></div>' +
+      '<button class="btn" data-act="copy" data-text="' + esc(u.wallet) + '">Copy address</button>' : '<div class="muted">No wallet connected.</div>') + '</div>' +
+    '<div class="card"><b>Withdrawals</b>';
+  if (!AD.withdrawals.length) h += '<div class="muted" style="margin-top:8px">No withdrawals yet.</div>';
+  AD.withdrawals.forEach(w => {
+    h += '<div class="kv"><span>#' + w.id + ' · ' + dt(w.created_at) + '</span><b style="font-size:13px">' + fmt(w.amount) + ' · ' + esc(w.status) + '</b></div>';
+  });
+  h += '</div><button class="btn ' + (u.blocked ? 'primary' : 'danger') + '" data-act="au_toggle">' + (u.blocked ? '✅ Unblock user' : '⛔ Block user') + '</button></div>';
+  return h;
+}
+function viewAdmin() {
+  if (AD_ID) return viewAdminUser();
+  if (!ADM || Date.now() - ADM_AT > 20000) loadAdmin();
+  if (!ADM) return '<div class="h">Admin</div><div class="card muted" style="text-align:center">Loading…</div>';
+  return '<div class="h">Admin</div><div class="stack">' +
+    '<div class="grid2"><div class="stat"><small>Users</small><b>' + ADM.users + '</b></div>' +
+    '<div class="stat"><small>Total balance</small><b>' + fmt(ADM.total_balance) + '</b></div></div>' +
+    '<div class="grid2"><button class="btn' + (ADM_SEG === 'wd' ? ' primary' : '') + '" data-act="adm_seg" data-seg="wd">Withdrawals' + (ADM.list.length ? ' (' + ADM.list.length + ')' : '') + '</button>' +
+    '<button class="btn' + (ADM_SEG === 'users' ? ' primary' : '') + '" data-act="adm_seg" data-seg="users">Users</button></div>' +
+    (ADM_SEG === 'users' ? usersHtml() : wdHtml()) + '</div>';
 }
 async function wdAct(el, kind) {
   await guarded(async () => {
     const r = await api('/api/admin/withdraw_' + kind, 'POST', { id: +el.dataset.id });
     if (!r.ok) toast(errText(r)); else toast(kind === 'done' ? 'Marked as paid' : 'Rejected and refunded');
     ADM = null; renderView();
+  });
+}
+function userToggleConfirm() {
+  const u = AD.user;
+  openSheet('<div class="stack"><b style="font-size:18px">' + (u.blocked ? 'Unblock ' : 'Block ') + esc(u.name) + '?</b>' +
+    '<div class="muted">' + (u.blocked ? 'The user will be able to use the app again.' : 'The user will not be able to use the app or withdraw. Pending withdrawal requests stay in your list.') + '</div>' +
+    '<button class="btn ' + (u.blocked ? 'primary' : 'danger') + ' big" data-act="au_toggle_ok">Confirm</button></div>');
+}
+async function userToggleDo() {
+  await guarded(async () => {
+    const r = await api('/api/admin/user_block', 'POST', { id: AD_ID, blocked: !AD.user.blocked });
+    closeSheet();
+    if (!r.ok) { toast(errText(r)); return; }
+    toast(AD.user.blocked ? 'User unblocked' : 'User blocked');
+    AD = null; AU = null; renderView();
   });
 }
 
@@ -593,7 +684,13 @@ const ACTS = {
   share: () => openLink('https://t.me/share/url?url=' + encodeURIComponent(S.referral.link) +
     '&text=' + encodeURIComponent('⛏ Join ' + S.coin.name + ' mining and earn coins!')),
   task_start: taskStart, task_claim: taskClaim, task_add: taskAdd, task_del: taskDel,
-  wd_done: el => wdAct(el, 'done'), wd_reject: el => wdAct(el, 'reject')
+  wd_done: el => wdAct(el, 'done'), wd_reject: el => wdAct(el, 'reject'),
+  adm_seg: el => { ADM_SEG = el.dataset.seg; renderView(); },
+  au_search: () => { AU_Q = ($('#auQ') ? $('#auQ').value : '').trim(); AU_LIM = 30; AU = null; renderView(); },
+  au_more: () => { AU_LIM += 30; AU = null; renderView(); },
+  au_open: el => { AD_ID = +el.dataset.id; AD = null; renderView(); $('#view').scrollTop = 0; },
+  au_back: () => { AD_ID = null; AD = null; renderView(); },
+  au_toggle: userToggleConfirm, au_toggle_ok: userToggleDo
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
