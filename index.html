@@ -124,7 +124,14 @@ const tg = (_tw && _tw.initData) ? _tw : { initData: '', ready(){}, expand(){}, 
 const RING_C = 2 * Math.PI * 96;
 const API = 'https://mcoin-api.noyonbormon36.workers.dev';
 /* TADS ad widget (optional sponsored block on the Mining tab). No forced ads, no rewards. */
-const ADS = { tadsId: 13081, debug: false };
+const ADS = {
+  tadsId: 13081,          // small "Sponsored" block on the Mining tab
+  fullId: 13101,          // TADS FULLSCREEN BANNER widget ID (0 = off)
+  fullOnOpen: true,       // show the fullscreen ad when the app opens (at most once per fullGapMin minutes)
+  fullOnClaim: true,      // show the fullscreen ad after a successful claim
+  fullGapMin: 30,
+  debug: false
+};
 
 /* ---------- Text ---------- */
 const T = {
@@ -536,6 +543,25 @@ function placeAd() {
   const h = TAB === 'mining' ? $('#adHolder') : null;
   if (h) h.appendChild(adCard); else $('#adPark').appendChild(adCard);
 }
+let fullCtl = null;
+function initFullAd() {
+  try {
+    if (!ADS.fullId || !window.tads || !window.tads.init) return;
+    fullCtl = window.tads.init({ widgetId: ADS.fullId, type: 'fullscreen', debug: ADS.debug, onAdsNotFound: function () {} });
+  } catch (e) { fullCtl = null; }
+}
+function showFullAd() {
+  try { if (fullCtl) { const p = fullCtl.showAd(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
+}
+function showFullAdOnOpen() {
+  if (!fullCtl || !ADS.fullOnOpen) return;
+  try {
+    const last = +(localStorage.getItem('mc_fa') || 0);
+    if (Date.now() - last < ADS.fullGapMin * 60000) return;
+    localStorage.setItem('mc_fa', String(Date.now()));
+  } catch (e) {}
+  setTimeout(showFullAd, 800);
+}
 function initTadsAd() {
   try {
     if (!ADS.tadsId || !window.tads || !window.tads.init) return;
@@ -557,7 +583,10 @@ async function doMine() {
   await guarded(async () => {
     const r = await api('/api/mine', 'POST');
     if (!r.ok) toast(errText(r));
-    else { haptic('success'); toast(r.action === 'claimed' ? '+' + fmt(r.reward) + ' ' + S.coin.name + ' claimed' : 'Mining started'); }
+    else {
+      haptic('success'); toast(r.action === 'claimed' ? '+' + fmt(r.reward) + ' ' + S.coin.name + ' claimed' : 'Mining started');
+      if (r.action === 'claimed' && ADS.fullOnClaim) setTimeout(showFullAd, 900);
+    }
     await load();
   });
 }
@@ -750,6 +779,8 @@ function initTonConnect() {
   $('#splash').remove();
   initTonConnect();
   initTadsAd();
+  initFullAd();
+  showFullAdOnOpen();
   setInterval(tickMining, 1000);
   setInterval(() => { if (!document.hidden && !busy && $('#sheet').classList.contains('hidden')) load().catch(() => {}); }, 300000);
 })();
