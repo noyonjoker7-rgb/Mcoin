@@ -129,7 +129,8 @@ const ADS = {
   fullId: 13101,          // TADS FULLSCREEN BANNER widget ID (0 = off)
   fullOnOpen: true,       // show the fullscreen ad when the app opens (at most once per fullGapMin minutes)
   fullOnClaim: true,      // show the fullscreen ad after a successful claim
-  fullGapMin: 0,
+  fullGapMin: 30,
+  fullClaimMax: 2,        // at most this many fullscreen ads per day after claiming
   debug: false
 };
 
@@ -260,6 +261,10 @@ const STATE_LABEL = { nowallet: 'Connect your wallet', idle: 'Mining stopped', m
 
 function viewMining() {
   const c = S.coin;
+  const st = S.streak || { count: 0 };
+  const streakHtml = '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>🔥 ' + st.count + '-day streak</b>' +
+    '<div class="muted">' + (st.next_at ? 'Reach ' + st.next_at + ' days: +' + fmt(st.next_bonus) + ' ' + esc(c.name) : 'Top streak bonus reached') + '</div></div>' +
+    (st.claimed_today ? '<span class="chip">Done today ✓</span>' : '<span class="muted">Claim today</span>') + '</div>';
   const price = c.price_usd > 0 ? '<div class="muted">≈ $' + fmt(S.balance * c.price_usd, 4) + '</div>' : '';
   return '<div class="stack">' +
     '<div class="card bal"><div class="muted">Total balance</div>' +
@@ -272,6 +277,7 @@ function viewMining() {
     '<div class="stat"><small>Per session</small><b>+' + fmt(c.mine_reward) + '</b></div>' +
     '<div class="stat"><small>Session</small><b>' + c.mine_hours + ' hrs</b></div>' +
     '<div class="stat"><small>Total earned</small><b>' + fmt(S.earned) + '</b></div></div>' +
+    streakHtml +
     (S.wallet.address ? '' : '<div class="lock">Connect your Tonkeeper wallet first to start mining.</div>') +
     '<button class="btn primary big" id="mineBtn" data-act="mine"></button>' +
     '<div id="adHolder"></div></div>';
@@ -329,6 +335,7 @@ function viewFriends() {
     '<div class="grid2"><div class="stat"><small>Joined</small><b style="font-size:24px">' + r.count + '</b></div>' +
     '<div class="stat"><small>Claimable coins</small><b style="font-size:24px">' + fmt(r.pending) + '</b></div></div>' +
     '<button class="btn primary" data-act="claim_ref"' + (r.pending > 0 ? '' : ' disabled') + '>🎁 Claim referral coins</button>' +
+    '<button class="btn" data-act="leaderboard">🏆 Leaderboard</button>' +
     '<div class="card stack"><b>Your invite link</b>' +
     '<div class="muted">You get +' + fmt(r.bonus) + ' ' + esc(S.coin.name) + ' for every friend who joins</div>' +
     '<div class="link-box"><span class="grow" style="flex:1">' + esc(r.link) + '</span></div>' +
@@ -550,6 +557,15 @@ function initFullAd() {
     fullCtl = window.tads.init({ widgetId: ADS.fullId, type: 'fullscreen', debug: ADS.debug, onAdsNotFound: function () {} });
   } catch (e) { fullCtl = null; }
 }
+function claimAdAllowed() {
+  try {
+    const k = 'mc_fc_' + new Date().toISOString().slice(0, 10);
+    const n = +(localStorage.getItem(k) || 0);
+    if (n >= ADS.fullClaimMax) return false;
+    localStorage.setItem(k, String(n + 1));
+  } catch (e) {}
+  return true;
+}
 function showFullAd() {
   try { if (fullCtl) { const p = fullCtl.showAd(); if (p && p.catch) p.catch(function () {}); } } catch (e) {}
 }
@@ -584,8 +600,8 @@ async function doMine() {
     const r = await api('/api/mine', 'POST');
     if (!r.ok) toast(errText(r));
     else {
-      haptic('success'); toast(r.action === 'claimed' ? '+' + fmt(r.reward) + ' ' + S.coin.name + ' claimed' : 'Mining started');
-      if (r.action === 'claimed' && ADS.fullOnClaim) setTimeout(showFullAd, 900);
+      haptic('success'); toast(r.action === 'claimed' ? '+' + fmt(r.reward) + ' ' + S.coin.name + ' claimed' + (r.bonus ? ' · 🔥 streak bonus +' + fmt(r.bonus) : '') : 'Mining started');
+      if (r.action === 'claimed' && ADS.fullOnClaim && claimAdAllowed()) setTimeout(showFullAd, 900);
     }
     await load();
   });
@@ -661,6 +677,20 @@ async function doWithdraw() {
   });
 }
 
+async function openLeaderboard() {
+  await guarded(async () => {
+    const r = await api('/api/leaderboard', 'POST');
+    if (!r.ok) { toast(errText(r)); return; }
+    const rows = (list, unit) => list.length
+      ? list.map((x, i) => '<div class="kv"><span>' + (i + 1) + '. ' + esc(x.name) + (x.me ? ' (you)' : '') + '</span><b>' + fmt(x.value) + ' ' + esc(unit) + '</b></div>').join('')
+      : '<div class="muted" style="margin-top:8px">Nobody yet.</div>';
+    openSheet('<div class="stack"><b style="font-size:18px">🏆 Leaderboard</b>' +
+      '<div class="card"><b>Top inviters</b>' + rows(r.inviters, 'friends') + '</div>' +
+      '<div class="card"><b>Top earners</b>' + rows(r.earners, S.coin.name) + '</div>' +
+      '<div class="muted" style="text-align:center">Your rank: #' + r.my_rank + ' by coins · ' + r.my_friends + ' friends invited</div></div>');
+  });
+}
+
 async function claimRef() {
   await guarded(async () => {
     const r = await api('/api/referral/claim', 'POST');
@@ -719,7 +749,8 @@ const ACTS = {
   au_more: () => { AU_LIM += 30; AU = null; renderView(); },
   au_open: el => { AD_ID = +el.dataset.id; AD = null; renderView(); $('#view').scrollTop = 0; },
   au_back: () => { AD_ID = null; AD = null; renderView(); },
-  au_toggle: userToggleConfirm, au_toggle_ok: userToggleDo
+  au_toggle: userToggleConfirm, au_toggle_ok: userToggleDo,
+  leaderboard: openLeaderboard
 };
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
@@ -757,9 +788,9 @@ function initTonConnect() {
     $('#splash').innerHTML =
       '<div style="width:100%;max-width:420px;text-align:left;color:var(--tx)">' +
       '<div style="font-size:26px;font-weight:800;margin-bottom:6px">⛏ MCoin Mining</div>' +
-      '<p class="muted" style="font-size:14px;line-height:1.5">A Telegram Mini App with its own server and database. Mine MCoin in 24-hour sessions, complete tasks, invite friends and request withdrawals to your TON wallet.</p>' +
+      '<p class="muted" style="font-size:14px;line-height:1.5">A Telegram Mini App with its own server and database. Mine MCoin in 8-hour sessions, complete tasks, invite friends and request withdrawals to your TON wallet.</p>' +
       '<div class="card" style="margin:14px 0">' +
-      '<div class="kv"><span>Mining</span><b>24h sessions, claim +40</b></div>' +
+      '<div class="kv"><span>Mining</span><b>8h sessions, claim +13</b></div>' +
       '<div class="kv"><span>Tasks</span><b>Channel and link tasks</b></div>' +
       '<div class="kv"><span>Referrals</span><b>Invite link, +100 per friend</b></div>' +
       '<div class="kv"><span>Wallet</span><b>TON Connect (Tonkeeper)</b></div>' +
